@@ -8,15 +8,29 @@ on:
   schedule:
     - cron: '0 0 * * 0'  # Weekly run for retraining
 
+env:
+  PYTHON_VERSION: '3.10'
+  TF_MODELS_VERSION: '2.11.0'
+  OPENCV_VERSION: '4.5.5.64'
+  NUMPY_VERSION: '1.24.3'
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -25,35 +39,46 @@ jobs:
           # Install base requirements
           pip install -r requirements_base.txt
           # Install tf-models-official without dependencies
-          pip install tf-models-official==2.11.0 --no-deps
+          pip install tf-models-official==${{ env.TF_MODELS_VERSION }} --no-deps
           # Install compatible opencv version
-          pip install opencv-python-headless==4.5.5.64
+          pip install opencv-python-headless==${{ env.OPENCV_VERSION }}
       - name: Run tests
         run: pytest tests/
 
   train:
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       matrix:
         task: ['glue/cola', 'glue/sst2']  # Add more tasks as needed
+      fail-fast: false  # Continue with other tasks if one fails
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # First install a compatible NumPy version
+          pip install numpy==${{ env.NUMPY_VERSION }}
           # Create a requirements file without tf-models-official
           grep -v "tf-models-official" requirements.txt > requirements_base.txt
           # Install base requirements
           pip install -r requirements_base.txt
           # Install tf-models-official without dependencies
-          pip install tf-models-official==2.11.0 --no-deps
+          pip install tf-models-official==${{ env.TF_MODELS_VERSION }} --no-deps
           # Install compatible opencv version
-          pip install opencv-python-headless==4.5.5.64
+          pip install opencv-python-headless==${{ env.OPENCV_VERSION }}
       - name: Train model
         run: python src/train.py
         env:
@@ -69,15 +94,24 @@ jobs:
   evaluate:
     needs: train
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       matrix:
         task: ['glue/cola', 'glue/sst2']  # Same tasks as in train job
+      fail-fast: false
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -86,9 +120,9 @@ jobs:
           # Install base requirements
           pip install -r requirements_base.txt
           # Install tf-models-official without dependencies
-          pip install tf-models-official==2.11.0 --no-deps
+          pip install tf-models-official==${{ env.TF_MODELS_VERSION }} --no-deps
           # Install compatible opencv version
-          pip install opencv-python-headless==4.5.5.64
+          pip install opencv-python-headless==${{ env.OPENCV_VERSION }}
       - name: Download model
         uses: actions/download-artifact@v3
         with:
@@ -102,6 +136,7 @@ jobs:
   deploy:
     needs: evaluate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v3
@@ -121,4 +156,6 @@ jobs:
         with:
           context: .
           push: true
-          tags: yourusername/bert-glue-model:latest
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/bert-glue-model:latest
+            ${{ secrets.DOCKER_HUB_USERNAME }}/bert-glue-model:${{ github.sha }}
