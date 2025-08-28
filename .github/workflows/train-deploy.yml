@@ -20,7 +20,14 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # Create a requirements file without tf-models-official
+          grep -v "tf-models-official" requirements.txt > requirements_base.txt
+          # Install base requirements
+          pip install -r requirements_base.txt
+          # Install tf-models-official without dependencies
+          pip install tf-models-official==2.11.0 --no-deps
+          # Install compatible opencv version
+          pip install opencv-python-headless==4.5.5.64
       - name: Run tests
         run: pytest tests/
 
@@ -39,7 +46,14 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # Create a requirements file without tf-models-official
+          grep -v "tf-models-official" requirements.txt > requirements_base.txt
+          # Install base requirements
+          pip install -r requirements_base.txt
+          # Install tf-models-official without dependencies
+          pip install tf-models-official==2.11.0 --no-deps
+          # Install compatible opencv version
+          pip install opencv-python-headless==4.5.5.64
       - name: Train model
         run: python src/train.py
         env:
@@ -67,7 +81,14 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # Create a requirements file without tf-models-official
+          grep -v "tf-models-official" requirements.txt > requirements_base.txt
+          # Install base requirements
+          pip install -r requirements_base.txt
+          # Install tf-models-official without dependencies
+          pip install tf-models-official==2.11.0 --no-deps
+          # Install compatible opencv version
+          pip install opencv-python-headless==4.5.5.64
       - name: Download model
         uses: actions/download-artifact@v3
         with:
